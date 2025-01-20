@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Function to get SMART health data
+get_smart_data() {
+  local drive=$1
+  smartctl -A /dev/"$drive" | awk '
+    /SMART overall-health/ { health=$NF }
+    /Power_On_Hours/ { hours=$NF }
+    /Raw_Read_Error_Rate/ { errors=$NF }
+    END {
+      print health, hours, errors
+    }
+  '
+}
+
+# Function to apply color based on health data
+apply_color() {
+  local health=$1
+  local hours=$2
+  local errors=$3
+
+  # Set colors for output
+  local color=""
+  if [ "$errors" -ge 75 ]; then
+    color="\033[31m"  # Red for failed drives
+  elif [ "$hours" -lt 2000 ] && [ "$errors" -eq 0 ]; then
+    color="\033[34m"  # Blue for new drives with zero errors
+  elif [ "$hours" -lt 26250 ] && [ "$errors" -lt 75 ]; then
+    color="\033[32m"  # Green for healthy drives
+  elif [ "$hours" -ge 26250 ] && [ "$errors" -lt 75 ]; then
+    color="\033[33m"  # Yellow for older healthy drives
+  else
+    color="\033[0m"   # Default (No color)
+  fi
+
+  # Return color-coded output
+  echo -e "${color}$health${NC}"
+}
+
+# Output table header
+echo -e "+------------------+-----------------------+-------------------------+"
+echo -e "| Drive            | Hours Used            | Errors                  |"
+echo -e "+------------------+-----------------------+-------------------------+"
+
+# Loop through all drives (sda, sdb, etc.)
+for drive in $(lsblk -d -o NAME | tail -n +2); do
+  # Get SMART data (health, hours, errors)
+  read health hours errors <<< $(get_smart_data "$drive")
+
+  # Apply color based on health data
+  apply_color "$health" "$hours" "$errors"
+done
+
+# End of table
+echo -e "+------------------+-----------------------+-------------------------+"
