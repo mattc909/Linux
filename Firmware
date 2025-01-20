@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Function to check BIOS version using dmidecode
+check_bios_version() {
+  local bios_version
+  bios_version=$(dmidecode -s bios-version)
+  echo "$bios_version"
+}
+
+# Function to check IPMI version using ipmitool
+check_ipmi_version() {
+  local ipmi_version
+  ipmi_version=$(ipmitool mc info | grep "Firmware Revision" | awk '{print $NF}')
+  echo "$ipmi_version"
+}
+
+# Function to check RAID controller firmware (if present)
+check_raid_firmware() {
+  local raid_firmware
+  raid_firmware=$(lspci | grep -i raid || echo "No RAID controller found")
+  echo "$raid_firmware"
+}
+
+# Function to check attached drives using lsblk and smartctl for firmware
+check_drives_firmware() {
+  local drives=$(lsblk -d -o NAME,MODEL | tail -n +2)
+  local output=""
+  
+  while IFS= read -r drive; do
+    local drive_name
+    drive_name=$(echo "$drive" | awk '{print $1}')
+    local model
+    model=$(echo "$drive" | awk '{print $2}')
+    
+    # Get drive firmware using smartctl (works for most drives)
+    local firmware_version
+    firmware_version=$(smartctl -i /dev/"$drive_name" | grep "Firmware Version" | awk '{print $3}')
+    
+    output+="$drive_name  $model  $firmware_version\n"
+  done <<< "$drives"
+  
+  echo -e "$output"
+}
+
+# Output table header
+echo -e "+------------------+-------------------------------------+"
+echo -e "| Component        | Firmware Version                   |"
+echo -e "+------------------+-------------------------------------+"
+
+# Check BIOS version
+bios_version=$(check_bios_version)
+echo -e "| BIOS             | $bios_version                      |"
+
+# Check IPMI firmware version
+ipmi_version=$(check_ipmi_version)
+echo -e "| IPMI             | $ipmi_version                      |"
+
+# Check RAID firmware version
+raid_firmware=$(check_raid_firmware)
+echo -e "| RAID Controller  | $raid_firmware                     |"
+
+# Check attached drives firmware
+drives_firmware=$(check_drives_firmware)
+echo -e "$drives_firmware"
+
+# End of table
+echo -e "+------------------+-------------------------------------+"
