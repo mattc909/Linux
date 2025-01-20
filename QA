@@ -1,0 +1,67 @@
+#!/bin/bash
+#script for QA
+
+# Function to display Processor Information
+get_cpu_info() {
+    echo "Processor Information:"
+    lscpu | grep -E 'Model name|CPU MHz|Thread|Core'
+    echo
+}
+
+# Function to display RAM Information
+get_ram_info() {
+    echo "RAM Information:"
+    free -h | grep -E 'Mem|Swap'
+    echo
+    echo "RAM Speed (if available):"
+    sudo lshw -C memory | grep -E 'size|clock'
+    echo
+}
+
+# Function to display Network Information
+get_network_info() {
+    echo "Network Interface Information:"
+    ip -s link
+    echo
+    echo "Network Speed (if available):"
+    sudo ethtool $(ip -o link show | awk -F': ' '{print $2}' | head -n 1) | grep -i speed
+    echo
+}
+
+# Function to display RAID Controller Information
+get_raid_info() {
+    echo "RAID Controller Information:"
+    if command -v lspci &> /dev/null; then
+        lspci | grep -i raid
+    fi
+    echo
+    echo "RAID Card Firmware (if available):"
+    if command -v smartctl &> /dev/null; then
+        sudo smartctl --scan | grep -i raid
+    fi
+    echo
+}
+
+# Function to display IPMI Firmware and Status
+get_ipmi_info() {
+    echo "IPMI Information:"
+    if command -v ipmitool &> /dev/null; then
+        ipmitool fru
+        ipmitool power status
+    else
+        echo "ipmitool not found. Please install ipmitool for full IPMI details."
+    fi
+    echo
+}
+
+# Main function to call all information gathering functions
+get_system_info() {
+    get_cpu_info
+    get_ram_info
+    get_network_info
+    get_raid_info
+    get_ipmi_info
+}
+
+# Run the script
+get_system_info
