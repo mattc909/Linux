@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Function to check network interfaces for link status and speed
+check_network_interfaces() {
+  local interfaces=$(ip -o link show | awk -F': ' '{print $2}')
+  local output=""
+  
+  for interface in $interfaces; do
+    # Check if the interface is up
+    local link_status
+    link_status=$(cat /sys/class/net/$interface/operstate)
+
+    if [ "$link_status" == "up" ]; then
+      # Get the uplink speed
+      local uplink_speed
+      uplink_speed=$(ethtool $interface 2>/dev/null | grep "Speed" | awk '{print $2}')
+      
+      if [ -z "$uplink_speed" ]; then
+        uplink_speed="Unknown"
+      fi
+      
+      output+="$interface | Up | $uplink_speed\n"
+    else
+      output+="$interface | Down | N/A\n"
+    fi
+  done
+  
+  echo -e "$output"
+}
+
+# Function to check PCIe devices
+check_pcie_devices() {
+  local pcie_devices=$(lspci | grep -i "pci")
+  
+  if [ -z "$pcie_devices" ]; then
+    echo "No PCIe devices are present"
+  else
+    echo "$pcie_devices"
+  fi
+}
+
+# Output table header for network interfaces
+echo -e "+------------------+-------------------+------------------+"
+echo -e "| Interface        | Link Status       | Uplink Speed     |"
+echo -e "+------------------+-------------------+------------------+"
+
+# Check network interfaces
+network_info=$(check_network_interfaces)
+echo -e "$network_info"
+
+# Output table for PCIe devices
+echo -e "+------------------+-------------------+------------------+"
+echo -e "| PCIe Devices     | Description       |"
+echo -e "+------------------+-------------------+------------------+"
+
+# Check PCIe devices
+pcie_info=$(check_pcie_devices)
+if [ "$pcie_info" == "No PCIe devices are present" ]; then
+  echo -e "| No PCIe devices are present                               |"
+else
+  # Print PCIe devices with a description
+  while IFS= read -r line; do
+    echo -e "| $line"
+  done <<< "$pcie_info"
+fi
+
+# End of table
+echo -e "+------------------+-------------------+------------------+"
