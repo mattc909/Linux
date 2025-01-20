@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Function to check the processor(s)
+check_processors() {
+  local processors=$(lscpu | grep "Model name" | awk -F: '{print $2}' | sed 's/^ //g')
+  
+  if [ $(echo "$processors" | wc -l) -gt 1 ]; then
+    local first_processor=$(echo "$processors" | head -n 1)
+    local mismatched=false
+    while read -r processor; do
+      if [ "$first_processor" != "$processor" ]; then
+        mismatched=true
+        break
+      fi
+    done <<< "$processors"
+    
+    if [ "$mismatched" = true ]; then
+      echo "Processors do not match."
+    else
+      echo "$first_processor"
+    fi
+  else
+    echo "$processors"
+  fi
+}
+
+# Function to check RAM details (size, speed, brand)
+check_ram() {
+  local ram_info
+  ram_info=$(sudo dmidecode -t memory | grep -E 'Size:|Speed:|Manufacturer:' | awk -F: '{print $2}' | sed 's/^ //g')
+  
+  local current_slot=""
+  local ram_table=""
+  
+  while IFS= read -r line; do
+    if [[ "$line" == "Size" ]]; then
+      if [[ -n "$current_slot" ]]; then
+        ram_table+="$current_slot\n"
+      fi
+      current_slot="Size: $line"
+    elif [[ "$line" == "Speed" || "$line" == "Manufacturer" ]]; then
+      current_slot="$current_slot | $line"
+    fi
+  done <<< "$ram_info"
+  
+  if [[ -n "$current_slot" ]]; then
+    ram_table+="$current_slot\n"
+  fi
+  
+  echo -e "$ram_table"
+}
+
+# Output the table header
+echo -e "+------------------+-------------------------------------+"
+echo -e "| Component        | Details                             |"
+echo -e "+------------------+-------------------------------------+"
+
+# Check processor(s)
+echo -e "| Processor(s)     | $(check_processors)                |"
+
+# Check RAM information
+echo -e "| RAM (Size, Speed, Brand) |"
+check_ram
+echo -e "+------------------+-------------------------------------+"
